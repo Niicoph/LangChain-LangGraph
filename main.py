@@ -1,46 +1,62 @@
 from dotenv import load_dotenv
-from langchain_core.prompts import PromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_ollama import ChatOllama
 
 load_dotenv()
 
 
+from langchain import hub
+from langchain.agents import AgentExecutor
+from langchain.agents.react.agent import create_react_agent
+from langchain_openai import ChatOpenAI
+from langchain_tavily import TavilySearch
+
+# ReAct agent -> looping controller that simulates reasoning
+# Thought: "I should search LinkedIn."
+# Action: TavilySearch("AI jobs")
+# Observation: (search results)
+# Thought: "Now I should summarize."
+# Action: "Write final answer.
+
+
+tools = [TavilySearch()]
+
+# Since ChatOpenAI automatically injects a "stop" tokens parameter when building requests for agents, models that don't support stop sequences won't work
+# OpenAI's API rejects the request -> hence 400 BadRequestError.
+llm = ChatOpenAI(model="gpt-4o", temperature=0)
+# Why the stop? because it tells the agent to stop after a string is matched. Then, Agent can (thought -> action -> input) and decide the next move.
+
+react_prompt = hub.pull("hwchase17/react")
+
+
+agent = create_react_agent(
+    llm=llm,
+    tools=tools,
+    prompt=react_prompt,
+)
+
+
+agent_executor = AgentExecutor(
+    agent=agent,
+    tools=tools,
+    verbose=True,
+    handle_parsing_errors=True,
+    max_iterations=3
+)
+
+
+chain = agent_executor
+
+
 def main():
-    print("Hello from hello-world!")
-    information = """
-    Elon Reeve Musk FRS (born June 28, 1971) is a businessman, known for his leadership of Tesla, SpaceX, X (formerly Twitter), and the Department of Government Efficiency (DOGE). Musk has been the wealthiest person in the world since 2021; as of May 2025, Forbes estimates his net worth to be US$424.7 billion.
 
-Born to a wealthy family in Pretoria, South Africa, Musk emigrated in 1989 to Canada. He received bachelor's degrees from the University of Pennsylvania in 1997 before moving to California, United States, to pursue business ventures. In 1995, Musk co-founded the software company Zip2. Following its sale in 1999, he co-founded X.com, an online payment company that later merged to form PayPal, which was acquired by eBay in 2002. That year, Musk also became an American citizen.
-
-In 2002, Musk founded the space technology company SpaceX, becoming its CEO and chief engineer; the company has since led innovations in reusable rockets and commercial spaceflight. Musk joined the automaker Tesla as an early investor in 2004 and became its CEO and product architect in 2008; it has since become a leader in electric vehicles. In 2015, he co-founded OpenAI to advance artificial intelligence (AI) research but later left; growing discontent with the organization's direction and their leadership in the AI boom in the 2020s led him to establish xAI. In 2022, he acquired the social network Twitter, implementing significant changes and rebranding it as X in 2023. His other businesses include the neurotechnology company Neuralink, which he co-founded in 2016, and the tunneling company the Boring Company, which he founded in 2017.
-
-Musk was the largest donor in the 2024 U.S. presidential election, and is a supporter of global far-right figures, causes, and political parties. In early 2025, he served as senior advisor to United States president Donald Trump and as the de facto head of DOGE. After a public feud with Trump, Musk left the Trump administration and announced he was creating his own political party, the America Party.
-
-Musk's political activities, views, and statements have made him a polarizing figure, especially following the COVID-19 pandemic. He has been criticized for making unscientific and misleading statements, including COVID-19 misinformation and promoting conspiracy theories, and affirming antisemitic, racist, and transphobic comments. His acquisition of Twitter was controversial due to a subsequent increase in hate speech and the spread of misinformation on the service. His role in the second Trump administration attracted public backlash, particularly in response to DOGE.
-    """
-    summary_template = """ given the information {information} about a person I want you to create:
-    1. A short summary
-    2. Two interesting facts about them
-    """
-
-    summary_prompt_template = PromptTemplate(
-        # Qué variables va a recibir el prompt
-        input_variables=["information"],
-        template=summary_template,       # El template que utiliza el prompt
+    result = chain.invoke(
+        input={
+            "input": "search for 3 job postings for an ai engineer using langchain in europe on linkedin and list their details",
+        }
     )
 
-    llm = ChatOpenAI(temperature=0, model="gpt-5-mini")
-    # llm = ChatOllama(temperature=0 , model="gemma3:270m")
-
-
-
-    # Pipe operator. Hace la "conexion" entre el prompt y el modelo
-    chain = summary_prompt_template | llm
-    # Diccionario con las variables que necesita el prompt
-    response = chain.invoke({"information": information})
-    print(response.content)
+    print(result)
 
 
 if __name__ == "__main__":
+
     main()
