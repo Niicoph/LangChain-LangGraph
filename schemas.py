@@ -2,9 +2,8 @@ from typing import List
 
 from pydantic import BaseModel, Field
 
-# This class is used to store the sources used by the agent
 
-
+# this schema is used to specify the structure of the sources used by the agent
 class Source(BaseModel):
     """Schema for a source used by the agent"""
 
